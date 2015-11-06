@@ -65,22 +65,26 @@ execute(DbId, Statement, Args) ->
 
 
 do(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
-
     % Nope, we're not even pooling or keeping the sockets alive for now..
     % ... one step at a time, let's prove the concept before optimizing...
     % Note both our send and connect timeouts are set to 250 ms -
-    % these operations should always be fast, and if they fail we need to know this
+    % these two operations should always be fast, and if they fail we need to know this
     % and (ultimately) terminate or otherwise permit a retry against a differnt host.
     % escon note: support round-robin responses where response type is defined as
     % 'one_of' the resolved value. {data_service_host, etcd_resolver, "/data/service/host", [roundrobin]}
     %
-    %% note we'll need to be a proc for get_with_watch to be helpful...
     % { Addr, Port }  = escon:get_with_watch(data_service_host),
-    Addr = {127,0,0,1},
-    Port = 6543,
+    %% note we'll need to be a proc for get_with_watch to be helpful, but first thing's first...
+
+    Addr = envy_parse:host_to_ip(sqeache_client, vip, "127.0.0.1"),
+    Port = envy:get(sqeache_client, port, 6543, integer),
     Sock = gen_tcp:connect(Addr, Port,
-                           [binary, {active, false}, {packet, 0},
-                            {send_timeout, ?COMM_TIMEOUT}], ?COMM_TIMEOUT),
+                           [binary,
+                            {active, false},
+                            {packet, 0},
+                            {send_timeout, ?COMM_TIMEOUT}
+                           ],
+                           ?COMM_TIMEOUT),
     Term = to_term(DbId, Type, Statement, Args, XFormName, XFormArgs),
     Response = maybe_send_and_receive(Sock, Term),
     maybe_close(Sock),
