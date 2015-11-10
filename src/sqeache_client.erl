@@ -100,7 +100,7 @@ execute(DbId, Statement) ->
     do(DbId, execute, Statement, [], none, none).
 
 execute(DbId, Statement, Args) ->
-    do(DbId, excute, Statement, Args, none, none).
+    do(DbId, execute, Statement, Args, none, none).
 
 
 do(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
