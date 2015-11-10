@@ -6,12 +6,12 @@
          %stat/1, stat/2, stat/3, stat/4,
          %sel/1, sel/2, sel/3, sel/4,
          % actual interface
-         statement/1, statement/2, statement/3, statement/4,
-         select/1, select/2, select/3, select/4,
-         execute/1, execute/2
-         %statement/2, statement/3, statement/4, statement/5,
-         %select/2, select/3, select/4, select/5,
-         %execute/2, execute/3
+         %statement/1, statement/2, statement/3, statement/4,
+         %select/1, select/2, select/3, select/4,
+         %execute/1, execute/2
+         statement/2, statement/3, statement/4, statement/5,
+         select/2, select/3, select/4, select/5,
+         execute/2, execute/3
         ]).
 
 % The timeout for opening a socket and sending data
@@ -35,72 +35,72 @@
 
 
 % TODO maybe just use execute and run parse xforms if any locally?
-select(Statement) ->
-    do(any, select, Statement, [], identity, []).
+%select(Statement) ->
+    %do(any, select, Statement, [], identity, []).
 
-select(Statement, Args) ->
-    do(any, select, Statement, Args, identity, []).
+%select(Statement, Args) ->
+    %do(any, select, Statement, Args, identity, []).
 
-select(Statement, Args, {XFormName, XFormArgs}) ->
-    do(any, select, Statement, Args, XFormName, XFormArgs);
-select(Statement, Args, XFormName) ->
-    do(any, select, Statement, Args, XFormName, []).
+%select(Statement, Args, {XFormName, XFormArgs}) ->
+    %do(any, select, Statement, Args, XFormName, XFormArgs);
+%select(Statement, Args, XFormName) ->
+    %do(any, select, Statement, Args, XFormName, []).
 
-select(Statement, Args, XFormName, XFormArgs) ->
-    do(any, select, Statement, Args, XFormName, XFormArgs).
+%select(Statement, Args, XFormName, XFormArgs) ->
+    %do(any, select, Statement, Args, XFormName, XFormArgs).
 
-statement(Statement) ->
-    do(any, statement, Statement, [], identity, []).
+%statement(Statement) ->
+    %do(any, statement, Statement, [], identity, []).
 
-statement(Statement, Args) ->
-    do(any, statement, Statement, Args, identity, []).
+%statement(Statement, Args) ->
+    %do(any, statement, Statement, Args, identity, []).
 
-statement(Statement, Args, {XFormName, XFormArgs}) ->
-    do(any, statement, Statement, Args, XFormName, XFormArgs);
-statement(Statement, Args, XFormName) ->
-    do(any, statement, Statement, Args, XFormName, []).
+%statement(Statement, Args, {XFormName, XFormArgs}) ->
+    %do(any, statement, Statement, Args, XFormName, XFormArgs);
+%statement(Statement, Args, XFormName) ->
+    %do(any, statement, Statement, Args, XFormName, []).
 
-statement(Statement, Args, XFormName, XFormArgs) ->
-    do(any, statement, Statement, Args, XFormName, XFormArgs).
-
-
-execute(Statement) ->
-    do(any, execute, Statement, [], none, none).
-
-execute(Statement, Args) ->
-    do(any, execute, Statement, Args, none, none).
+%statement(Statement, Args, XFormName, XFormArgs) ->
+    %do(any, statement, Statement, Args, XFormName, XFormArgs).
 
 
-%select(DbId, Statement) ->
-    %do(DbId, select, Statement, [], identity, []).
+%execute(Statement) ->
+    %do(any, execute, Statement, [], none, none).
 
-%select(DbId, Statement, Args) ->
-    %do(DbId, select, Statement, Args, identity, []).
-
-%select(DbId, Statement, Args, XFormName) ->
-    %do(DbId, select, Statement, Args, XFormName, []).
-
-%select(DbId, Statement, Args, XFormName, XFormArgs) ->
-    %do(DbId, select, Statement, Args, XFormName, XFormArgs).
-
-%statement(DbId, Statement) ->
-    %do(DbId, statement, Statement, [], identity, []).
-
-%statement(DbId, Statement, Args) ->
-    %do(DbId, statement, Statement, Args, identity, []).
-
-%statement(DbId, Statement, Args, XFormName) ->
-    %do(DbId, statement, Statement, Args, XFormName, []).
-
-%statement(DbId, Statement, Args, XFormName, XFormArgs) ->
-    %do(DbId, statement, Statement, Args, XFormName, XFormArgs).
+%execute(Statement, Args) ->
+    %do(any, execute, Statement, Args, none, none).
 
 
-%execute(DbId, Statement) ->
-    %do(DbId, execute, Statement, [], none, none).
+select(DbId, Statement) ->
+    do(DbId, select, Statement, [], identity, []).
 
-%execute(DbId, Statement, Args) ->
-    %do(DbId, excute, Statement, Args, none, none).
+select(DbId, Statement, Args) ->
+    do(DbId, select, Statement, Args, identity, []).
+
+select(DbId, Statement, Args, XFormName) ->
+    do(DbId, select, Statement, Args, XFormName, []).
+
+select(DbId, Statement, Args, XFormName, XFormArgs) ->
+    do(DbId, select, Statement, Args, XFormName, XFormArgs).
+
+statement(DbId, Statement) ->
+    do(DbId, statement, Statement, [], identity, []).
+
+statement(DbId, Statement, Args) ->
+    do(DbId, statement, Statement, Args, identity, []).
+
+statement(DbId, Statement, Args, XFormName) ->
+    do(DbId, statement, Statement, Args, XFormName, []).
+
+statement(DbId, Statement, Args, XFormName, XFormArgs) ->
+    do(DbId, statement, Statement, Args, XFormName, XFormArgs).
+
+
+execute(DbId, Statement) ->
+    do(DbId, execute, Statement, [], none, none).
+
+execute(DbId, Statement, Args) ->
+    do(DbId, excute, Statement, Args, none, none).
 
 
 do(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
