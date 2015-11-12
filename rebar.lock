@@ -1,4 +1,4 @@
 [{<<"envy">>,
-  {git,"https://github.com/manderson26/envy",
-       {ref,"8ba233bae37d87c319f3b4c5ae6973576986b36c"}},
+  {git,"https://github.com/marcparadise/envy",
+       {ref,"87c1675bb4e8dc5159df3d28a0acad981c3ddd0f"}},
   0}].
