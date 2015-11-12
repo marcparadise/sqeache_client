@@ -1,4 +1,8 @@
 [{<<"envy">>,
   {git,"https://github.com/marcparadise/envy",
        {ref,"87c1675bb4e8dc5159df3d28a0acad981c3ddd0f"}},
+  0},
+ {<<"pooler">>,
+  {git,"https://github.com/marcparadise/pooler",
+       {ref,"e4dd9515a6a5bcf35266f07328f3051956fa4b90"}},
   0}].
