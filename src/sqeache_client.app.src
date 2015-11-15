@@ -5,8 +5,10 @@
   {mod, {'sqeache_client_app', []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    sasl
    ]},
+  {included_application, [pooler]},
   {env,[]},
   {modules, []},
 
