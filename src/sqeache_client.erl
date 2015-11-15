@@ -68,7 +68,7 @@ execute(DbId, Statement, Args) ->
     prep_and_send(DbId, execute, Statement, Args, none, none).
 
 %% Internal
-prep_and_send(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
+prep_and_send(DbId, Type, Statement, Args, XFormName, XFormArgs) when is_atom(DbId), is_atom(Type) ->
     Bin = to_bin(DbId, Type, Statement, Args, XFormName, XFormArgs),
     case pooler:take_member(sqp) of
         error_no_members ->
@@ -79,7 +79,11 @@ prep_and_send(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
             pooler:return_member(sqp, Member, State),
             Result
 
-    end.
+    end;
+prep_and_send(DbId, Type, _, _, _, _) ->
+    error_logger:error_report("Bad call with values ~p ~p", [DbId, Type]),
+    {error, {caller, invalid_input, db_id_and_type_must_be_atoms}}.
+
 parse_response({error, {tcp, _, _} = Response}) ->
     error_logger:error_report(Response),
    {fail, Response};

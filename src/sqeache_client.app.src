@@ -6,9 +6,9 @@
   {applications,
    [kernel,
     stdlib,
-    sasl
+    sasl,
+    pooler
    ]},
-  {included_application, [pooler]},
   {env,[]},
   {modules, []},
 
