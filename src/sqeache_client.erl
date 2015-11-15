@@ -1,181 +1,158 @@
 -module(sqeache_client).
-
--export([
-         % for REPL convenience:
-         %exec/1, exec/2,
-         %stat/1, stat/2, stat/3, stat/4,
-         %sel/1, sel/2, sel/3, sel/4,
-         % actual interface
-         %statement/1, statement/2, statement/3, statement/4,
-         %select/1, select/2, select/3, select/4,
-         %execute/1, execute/2
-         statement/2, statement/3, statement/4, statement/5,
-         select/2, select/3, select/4, select/5,
-         execute/2, execute/3
-        ]).
+-behaviour(gen_server).
 
 % The timeout for opening a socket and sending data
 % is kept very low so we can quickly fail over if we
 % don't get a good response.
 -define(COMM_TIMEOUT, 250).
 -define(RECV_TIMEOUT, 10000).
+-define(SERVER, ?MODULE).
 
-%exec(Statement) -> execute(any, Statement).
-%exec(Statement, Args) -> execute(any, Statement, Args).
-%stat(Statement) -> statement(any, Statement).
-%stat(Statement, Args) -> statement(any, Statement, Args).
-%stat(Statement, Args, XFN) -> statement(any, Statement, Args, XFN).
-%stat(Statement, Args, XFN, XFA) -> statement(any, Statement, Args, XFN, XFA).
+-record(state, { reserved = 0, socket = undefined }).
 
-%sel(Statement) -> select(any, Statement).
-%sel(Statement, Args) -> select(any, Statement, Args).
-%sel(Statement, Args, XF) -> select(any, Statement, Args, XF).
-%sel(Statement, Args, XF, XFA) -> select(any, Statement, Args, XF, XFA).
+% API
+-export([statement/2, statement/3, statement/4, statement/5,
+         select/2, select/3, select/4, select/5,
+         execute/2, execute/3,
+         start_link/0,
+         ping/1
+        ]).
 
+% gen_server
 
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
-% TODO maybe just use execute and run parse xforms if any locally?
-%select(Statement) ->
-    %do(any, select, Statement, [], identity, []).
-
-%select(Statement, Args) ->
-    %do(any, select, Statement, Args, identity, []).
-
-%select(Statement, Args, {XFormName, XFormArgs}) ->
-    %do(any, select, Statement, Args, XFormName, XFormArgs);
-%select(Statement, Args, XFormName) ->
-    %do(any, select, Statement, Args, XFormName, []).
-
-%select(Statement, Args, XFormName, XFormArgs) ->
-    %do(any, select, Statement, Args, XFormName, XFormArgs).
-
-%statement(Statement) ->
-    %do(any, statement, Statement, [], identity, []).
-
-%statement(Statement, Args) ->
-    %do(any, statement, Statement, Args, identity, []).
-
-%statement(Statement, Args, {XFormName, XFormArgs}) ->
-    %do(any, statement, Statement, Args, XFormName, XFormArgs);
-%statement(Statement, Args, XFormName) ->
-    %do(any, statement, Statement, Args, XFormName, []).
-
-%statement(Statement, Args, XFormName, XFormArgs) ->
-    %do(any, statement, Statement, Args, XFormName, XFormArgs).
+start_link() ->
+    gen_server:start_link(?MODULE, [], []).
 
 
-%execute(Statement) ->
-    %do(any, execute, Statement, [], none, none).
-
-%execute(Statement, Args) ->
-    %do(any, execute, Statement, Args, none, none).
-
+ping(Who) ->
+    gen_server:call(Who, ping).
 
 select(DbId, Statement) ->
-    do(DbId, select, Statement, [], identity, []).
+    prep_and_send(DbId, select, Statement, [], identity, []).
 
 select(DbId, Statement, Args) ->
-    do(DbId, select, Statement, Args, identity, []).
+    prep_and_send(DbId, select, Statement, Args, identity, []).
 
+% TODO - why isn't this auto-resolved like it is in a direct sqerl call?
+select(DbId, Statement, Args, {XFormName, XFormArgs}) ->
+    prep_and_send(DbId, select, Statement, Args, XFormName, XFormArgs);
 select(DbId, Statement, Args, XFormName) ->
-    do(DbId, select, Statement, Args, XFormName, []).
+    prep_and_send(DbId, select, Statement, Args, XFormName, []).
 
 select(DbId, Statement, Args, XFormName, XFormArgs) ->
-    do(DbId, select, Statement, Args, XFormName, XFormArgs).
+    prep_and_send(DbId, select, Statement, Args, XFormName, XFormArgs).
 
 statement(DbId, Statement) ->
-    do(DbId, statement, Statement, [], identity, []).
+    prep_and_send(DbId, statement, Statement, [], identity, []).
 
 statement(DbId, Statement, Args) ->
-    do(DbId, statement, Statement, Args, identity, []).
+    prep_and_send(DbId, statement, Statement, Args, identity, []).
 
 statement(DbId, Statement, Args, XFormName) ->
-    do(DbId, statement, Statement, Args, XFormName, []).
+    prep_and_send(DbId, statement, Statement, Args, XFormName, []).
 
 statement(DbId, Statement, Args, XFormName, XFormArgs) ->
-    do(DbId, statement, Statement, Args, XFormName, XFormArgs).
-
+    prep_and_send(DbId, statement, Statement, Args, XFormName, XFormArgs).
 
 execute(DbId, Statement) ->
-    do(DbId, execute, Statement, [], none, none).
+    prep_and_send(DbId, execute, Statement, [], none, none).
 
 execute(DbId, Statement, Args) ->
-    do(DbId, execute, Statement, Args, none, none).
+    prep_and_send(DbId, execute, Statement, Args, none, none).
+
+%% Internal
+prep_and_send(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
+    Bin = to_bin(DbId, Type, Statement, Args, XFormName, XFormArgs),
+    case pooler:take_member(sqp) of
+        error_no_members ->
+            error_logger:error_report("No members available in sqp pool."),
+            {error, {pool, sqp, pool_overload_no_workers}};
+        Member when is_pid(Member) ->
+            {State, Result} = parse_response(gen_server:call(Member, {send, Bin}, infinity)),
+            pooler:return_member(sqp, Member, State),
+            Result
+
+    end.
+parse_response({error, {tcp, _, _} = Response}) ->
+    error_logger:error_report(Response),
+   {fail, Response};
+parse_response(Other) ->
+    % While there may be other errors, they will originate from
+    % the remote server and don't affect the validity of our pool
+    {ok, Other}.
 
 
-do(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
-    % Nope, we're not even pooling or keeping the sockets alive for now..
-    % ... one step at a time, let's prove the concept before optimizing...
-    % Note both our send and connect timeouts are set to 250 ms -
-    % these two operations should always be fast, and if they fail we need to know this
-    % and (ultimately) terminate or otherwise permit a retry against a differnt host.
-    % escon note: support round-robin responses where response type is defined as
-    % 'one_of' the resolved value. {data_service_host, etcd_resolver, "/data/service/host", [roundrobin]}
-    %
+
+to_bin(DbId, execute, Statement, Args, _, _) ->
+    term_to_binary({DbId, execute, Statement, Args});
+to_bin(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
+    term_to_binary({DbId, Type, Statement, Args, XFormName, XFormArgs}).
+
+% gen-server
+
+init([]) ->
     % { Addr, Port }  = escon:get_with_watch(data_service_host),
-    %% note we'll need to be a proc for get_with_watch to be helpful, but first thing's first...
+    Addr = envy_parse:host_to_ip(sqeache_client, sqeache_vip, "127.0.0.1"),
+    Port = envy:get(sqeache_client, sqeache_port, 6543, integer),
+    {ok, Socket} = gen_tcp:connect(Addr, Port, [binary, {active,false},
+                                                {packet, raw},
+                                                {keepalive, true},
+                                                {send_timeout, ?COMM_TIMEOUT}],
+                                   ?COMM_TIMEOUT),
+    {ok, #state{socket = Socket}}.
+handle_call({send, Bin}, _From, #state{socket = Socket} = State) ->
+    send_it(Socket, Bin, State);
+handle_call(_Request, _From, State) ->
+    {noreply, ok, State}.
 
-    Addr = {127,0,0,1}, % envy_parse:host_to_ip(sqeache_client, vip, "127.0.0.1"),
-    Port = 6543, % envy:get(sqeache_client, port, 6543, integer),
-    Sock = gen_tcp:connect(Addr, Port,
-                           [binary, {active,false}, {packet, raw},
-                            {send_timeout, ?COMM_TIMEOUT} ],
-                           ?COMM_TIMEOUT),
-    Term = to_term(DbId, Type, Statement, Args, XFormName, XFormArgs),
-    Response = maybe_send_and_receive(Sock, Term),
-    maybe_close(Sock),
-    Response.
+handle_cast(_Msg, State) ->
+    {noreply, State}.
 
-to_term(DbId, execute, Statement, Args, _, _) ->
-    {DbId, execute, Statement, Args};
-to_term(DbId, Type, Statement, Args, XFormName, XFormArgs) ->
-    {DbId, Type, Statement, Args, XFormName, XFormArgs}.
+handle_info(_Info, State) ->
+    {noreply, State}.
 
-maybe_send_and_receive({error, Failure}, _Term) ->
-    {error, {socket_open_failed, Failure}};
-maybe_send_and_receive({ok, Sock}, Term) ->
-    Bin = term_to_binary(Term),
+terminate(_Reason, #state{socket = Sock}) ->
+    gen_tcp:close(Sock),
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+send_it(Sock, Bin, State) ->
     Len = byte_size(Bin),
-    Packed = <<Len:32/integer,Bin/binary>>,
-    Result = gen_tcp:send(Sock,Packed),
-    maybe_receive(Sock, Result).
+    Message = <<Len:32/integer,Bin/binary>>,
+    case gen_tcp:send(Sock, Message) of
+        {error, closed} ->
+            {stop, error, {error, {tcp, send, socket_closed}}, State};
+        {error, Other} ->
+            {stop, error, {error, {tcp, send, Other}}, State};
 
-maybe_receive(_Sock, {error, Failure}) ->
-    {tcp_error, send, Failure};
-maybe_receive(Sock, _) ->
-    reply(recv(Sock)).
-
-% Note that we do use the length prefix protocol here as well instead of assuming that
-% we'll always kill the socket on conclusion - this will make it easier
-% when it's time to keep persistent sockets open.
-recv(Sock) ->
-   case gen_tcp:recv(Sock, 0) of
-       {ok, <<Length:32/integer,Data/binary>>} ->
-           recv(Sock, Length - byte_size(Data), Data);
-       {error, Reason} ->
-           {tcp_error, recv_header, Reason}
-   end.
-
-recv(_Sock, 0, Acc) ->
-    {ok, Acc};
-recv(Sock, Length, Acc) ->
-    case gen_tcp:recv(Sock, 0) of
-        {ok, Data} ->
-            recv(Sock, Length - byte_size(Data), <<Acc/binary,Data/binary>>);
-        {error, Failure} ->
-            {tcp_error, recv, Failure}
+        _ ->
+            recv(Sock, State)
     end.
 
-reply({ok, ValidResponse}) when is_binary(ValidResponse) ->
-    % right now the intent is to get back the raw reply, effectively as
-    % sqerl has processed it. We will probably want to wrap that in something
-    % meaningful?
-    binary_to_term(ValidResponse);
-reply(Error) ->
-    Error.
+recv(Sock, State) ->
+   case gen_tcp:recv(Sock, 0) of
+       {ok, <<Length:32/integer,Data/binary>>} ->
+           recv(Sock, Length - byte_size(Data), Data, State);
+       {error, Reason} ->
+           {stop, error, {error, {tcp, recv_header, Reason}}, State}
+   end.
 
-maybe_close({error, _Any}) ->
-    ok;
-maybe_close({ok, Sock}) ->
-    gen_tcp:close(Sock).
+recv(_Sock, 0, Acc, State) ->
+    {reply, binary_to_term(Acc), State};
+recv(Sock, Length, Acc, State) ->
+    case gen_tcp:recv(Sock, 0) of
+        {ok, Data} ->
+            recv(Sock, Length - byte_size(Data), <<Acc/binary,Data/binary>>, State);
+        {error, Reason} ->
+           {stop, error, {error, {tcp, recv, Reason}}, State}
+    end.
 
